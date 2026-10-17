@@ -38,7 +38,7 @@ extern NSString *const NetworkStatesChangeNotification;
 extern NSString *const NetworkDomain;
 
 //请求地址
-extern NSString *const BaseUrl;
+extern NSString *BaseUrl;
 
 //创建访客用户接口
 extern NSString *const CreateVisitorPath;
