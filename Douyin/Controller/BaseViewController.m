@@ -51,10 +51,12 @@
 }
 
 - (void) setStatusBarHidden:(BOOL) hidden {
+    if (@available(iOS 13.0, *)) { return; } // deprecated since iOS 9
     [[UIApplication sharedApplication] setStatusBarHidden:hidden];
 }
 
 - (void) setStatusBarBackgroundColor:(UIColor *)color {
+    if (@available(iOS 13.0, *)) { return; } // statusBarWindow is a private API: iOS13+ asserts and aborts
     UIView *statusBar = [[[UIApplication sharedApplication] valueForKey:@"statusBarWindow"] valueForKey:@"statusBar"];
     if ([statusBar respondsToSelector:@selector(setBackgroundColor:)]) {
         statusBar.backgroundColor = color;
