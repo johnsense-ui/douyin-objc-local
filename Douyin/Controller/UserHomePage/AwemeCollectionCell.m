@@ -61,7 +61,7 @@
 
 - (void)initData:(Aweme *)aweme {
     __weak __typeof(self) wself = self;
-    [self.imageView setWebPImageWithURL:[NSURL URLWithString:aweme.video.dynamic_cover.url_list.firstObject] progressBlock:^(CGFloat percent) {
+    [self.imageView setImageWithURL:[NSURL URLWithString:aweme.video.dynamic_cover.url_list.firstObject] progressBlock:^(CGFloat percent) {
     } completedBlock:^(UIImage *image, NSError *error) {
         if(!error) {
             [wself.imageView setImage:image];

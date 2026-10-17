@@ -22,6 +22,7 @@ static const NSInteger kAwemeListLikeCommentTag = 0x01;
 static const NSInteger kAwemeListLikeShareTag   = 0x02;
 
 @interface AwemeListCell()<SendTextDelegate, HoverTextViewDelegate, AVPlayerUpdateDelegate>
+@property (nonatomic, strong) UIImageView *coverPlaceholderView;
 
 @property (nonatomic, strong) UIView                   *container;
 @property (nonatomic ,strong) CAGradientLayer          *gradientLayer;
@@ -53,6 +54,16 @@ static const NSInteger kAwemeListLikeShareTag   = 0x02;
     _playerView = [AVPlayerView new];
     _playerView.delegate = self;
     [self.contentView addSubview:_playerView];
+    
+    // 封面占位：切换视频时先显示封面，避免空白闪烁
+    _coverPlaceholderView = [[UIImageView alloc] init];
+    _coverPlaceholderView.contentMode = UIViewContentModeScaleAspectFill;
+    _coverPlaceholderView.clipsToBounds = YES;
+    _coverPlaceholderView.backgroundColor = ColorBlackAlpha1;
+    [self.contentView insertSubview:_coverPlaceholderView belowSubview:_playerView];
+    [_coverPlaceholderView mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.edges.equalTo(self.contentView);
+    }];
     
     //init hover on player view container
     _container = [UIView new];
@@ -261,6 +272,10 @@ static const NSInteger kAwemeListLikeShareTag   = 0x02;
 -(void)prepareForReuse {
     [super prepareForReuse];
     
+    if(_coverPlaceholderView) {
+        _coverPlaceholderView.hidden = NO;
+        _coverPlaceholderView.alpha = 1;
+    }
     _isPlayerReady = NO;
     [_playerView cancelLoading];
     [_pauseIcon setHidden:YES];
@@ -439,12 +454,23 @@ static const NSInteger kAwemeListLikeShareTag   = 0x02;
 -(void)onPlayItemStatusUpdate:(AVPlayerItemStatus)status {
     switch (status) {
         case AVPlayerItemStatusUnknown:
+            if(_coverPlaceholderView) {
+                _coverPlaceholderView.hidden = NO;
+                _coverPlaceholderView.alpha = 1;
+            }
             [self startLoadingPlayItemAnim:YES];
             break;
         case AVPlayerItemStatusReadyToPlay:
             [self startLoadingPlayItemAnim:NO];
             
-            _isPlayerReady = YES;
+            if(_coverPlaceholderView && !_coverPlaceholderView.hidden) {
+            [UIView animateWithDuration:0.12 animations:^{
+                _coverPlaceholderView.alpha = 0;
+            } completion:^(BOOL finished) {
+                _coverPlaceholderView.hidden = YES;
+            }];
+        }
+        _isPlayerReady = YES;
             [_musicAlum startAnimation:_aweme.rate];
             
             if(_onPlayerReady) {
@@ -463,6 +489,12 @@ static const NSInteger kAwemeListLikeShareTag   = 0x02;
 // update method
 - (void)initData:(Aweme *)aweme {
     _aweme = aweme;
+    if(_coverPlaceholderView) {
+        _coverPlaceholderView.hidden = NO;
+        _coverPlaceholderView.alpha = 1;
+        _coverPlaceholderView.image = nil;
+        [_coverPlaceholderView setImageWithURL:[NSURL URLWithString:aweme.video.cover.url_list.firstObject]];
+    }
     
     [_nickName setText:[NSString stringWithFormat:@"@%@", aweme.author.nickname]];
     [_desc setText:aweme.desc];
