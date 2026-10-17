@@ -1,0 +1,67 @@
+name: build-ipa
+
+# sshi qiao/douyin-ios-objectc：先只验证能编译（数据层下一步再接本地库）
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 环境
+        run: |
+          xcodebuild -version
+          ls /Applications | grep -i '^Xcode' || true
+
+      - name: Pods 自检
+        run: |
+          ls "Pods/Target Support Files/Pods-Douyin" | head
+          test -f "Pods/Target Support Files/Pods-Douyin/Pods-Douyin.release.xcconfig" \
+            && echo "Pods xcconfig OK" || echo "缺 xcconfig"
+
+      - name: 列出 scheme
+        run: xcodebuild -list -workspace Douyin.xcworkspace || true
+
+      - name: 编译（未签名）
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -workspace Douyin.xcworkspace \
+            -scheme Douyin \
+            -configuration Release \
+            -sdk iphoneos \
+            CONFIGURATION_BUILD_DIR="$PWD/build/Release-iphoneos" \
+            OBJROOT="$PWD/build/obj" SYMROOT="$PWD/build/sym" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee build.log
+
+          APP=$(find build/Release-iphoneos -maxdepth 1 -name '*.app' | head -1)
+          [ -z "$APP" ] && { echo "::error::没有 .app"; tail -80 build.log; exit 1; }
+          EXE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APP/Info.plist")
+          [ -f "$APP/$EXE" ] || { echo "::error::app 里没有可执行文件"; tail -80 build.log; exit 1; }
+          echo "APP=$APP"
+
+      - name: 失败保日志
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: ignore
+
+      - name: 打 ipa
+        run: |
+          APP=$(find build/Release-iphoneos -maxdepth 1 -name '*.app' | head -1)
+          mkdir -p out/Payload && cp -R "$APP" out/Payload/
+          cd out && zip -qry Douyin-unsigned.ipa Payload && ls -lh Douyin-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Douyin-unsigned-ipa
+          path: out/Douyin-unsigned.ipa
