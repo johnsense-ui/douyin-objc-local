@@ -13,7 +13,7 @@ NSString *const NetworkStatesChangeNotification = @"NetworkStatesChangeNotificat
 NSString *const NetworkDomain = @"com.start.douyin";
 
 //请求地址
-NSString *const BaseUrl = @"http://116.62.9.17:8080/douyin/";
+NSString *const BaseUrl = @"http://172.29.8.196:6699/douyin/";
 
 //创建访客用户接口
 NSString *const CreateVisitorPath = @"visitor/create";
