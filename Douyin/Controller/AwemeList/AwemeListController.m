@@ -167,10 +167,6 @@ NSString * const kAwemeListCell   = @"AwemeListCell";
     }];
 }
 
-- (void)openSearch {
-    id vc = [SearchController new];
-    [self.navigationController pushViewController:vc animated:YES];
-}
 
 
 #pragma ScrollView delegate
@@ -443,6 +439,15 @@ NSString * const kAwemeListCell   = @"AwemeListCell";
                                                                      pageIndex:2 pageSize:10
                                                                      awemeType:AwemeWork uid:@""];
     [self.navigationController pushViewController:feed animated:YES];
+}
+
+@end
+
+@implementation AwemeListController (SearchEntry)
+
+- (void)openSearch {
+    SearchController *vc = [SearchController new];
+    [self.navigationController pushViewController:vc animated:YES];
 }
 
 @end
