@@ -25,6 +25,8 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>需要访问局域网内的视频库服务（自动发现 6698 / 播放 6699）</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>是否允许应用访问您的相册？</string>
 	<key>UILaunchStoryboardName</key>
