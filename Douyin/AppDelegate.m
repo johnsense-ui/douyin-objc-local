@@ -82,6 +82,30 @@ static BOOL DKProbeBase(NSString *base) {
     return ok;
 }
 
+static NSArray<NSString *> *DKCandidateBases(void) {
+    NSMutableArray<NSString *> *list = [NSMutableArray array];
+
+    NSString *found = DKDiscoverBaseUrl(1.2);
+    if (found.length) { [list addObject:found]; }
+
+    NSString *saved = [[NSUserDefaults standardUserDefaults] stringForKey:kSavedBaseKey];
+    if (saved.length) { [list addObject:saved]; }
+
+    if (BaseUrl.length) { [list addObject:BaseUrl]; }
+
+    // 兜底：曾经用过的地址都试一遍
+    [list addObject:@"http://172.29.8.196:6699/douyin/"];
+    [list addObject:@"http://172.20.10.3:6699/douyin/"];
+    [list addObject:@"http://100.78.220.84:6699/douyin/"];
+
+    // 去重
+    NSMutableArray *unique = [NSMutableArray array];
+    for (NSString *b in list) {
+        if (![unique containsObject:b]) { [unique addObject:b]; }
+    }
+    return unique;
+}
+
 @implementation AppDelegate
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
@@ -106,40 +130,26 @@ static BOOL DKProbeBase(NSString *base) {
 - (void)bootstrap:(NSInteger)attempt {
     __weak __typeof(self) wself = self;
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        NSString *base = nil;
+        NSArray<NSString *> *candidates = DKCandidateBases();
+        NSLog(@"[bootstrap] 候选地址: %@", candidates);
 
-        if (attempt == 0) {
-            base = DKDiscoverBaseUrl(1.5);
-        }
-        if (base.length == 0) {
-            base = [[NSUserDefaults standardUserDefaults] stringForKey:kSavedBaseKey];
-        }
-        if (base.length == 0) {
-            base = BaseUrl; // 编译进去的默认地址
-        }
-
-        BOOL reachable = DKProbeBase(base);
-        NSLog(@"[bootstrap] attempt=%ld base=%@ reachable=%d", (long)attempt, base, reachable);
-
-        if (reachable) {
-            BaseUrl = [base copy];
-            [[NSUserDefaults standardUserDefaults] setObject:BaseUrl forKey:kSavedBaseKey];
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [wself loadFeedWithRetry:0];
-            });
-            return;
+        for (NSString *candidate in candidates) {
+            if (DKProbeBase(candidate)) {
+                BaseUrl = [candidate copy];
+                [[NSUserDefaults standardUserDefaults] setObject:BaseUrl forKey:kSavedBaseKey];
+                NSLog(@"[bootstrap] 使用 %@", BaseUrl);
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [wself loadFeedWithRetry:0];
+                });
+                return;
+            }
         }
 
-        if (attempt < 3) {
-            [NSThread sleepForTimeInterval:0.6];
-            [wself bootstrap:attempt + 1];
-            return;
-        }
-
+        NSLog(@"[bootstrap] 全部候选地址都不通");
         dispatch_async(dispatch_get_main_queue(), ^{
-            [UIWindow showTips:@"连不上本地服务，请确认代理已启动且同网段"];
             wself.window.rootViewController =
                 [[UINavigationController alloc] initWithRootViewController:[UserHomePageController new]];
+            [UIWindow showTips:@"连不上服务器，点右上角「设置」填地址"];
         });
     });
 }

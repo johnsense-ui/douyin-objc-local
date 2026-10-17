@@ -153,18 +153,77 @@ NSString * const kAwemeListCell   = @"AwemeListCell";
 #pragma mark - 搜索入口
 
 - (void)addSearchEntry {
-    UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
-    [btn setTitle:@"搜索" forState:UIControlStateNormal];
-    [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    btn.titleLabel.font = [UIFont boldSystemFontOfSize:15];
-    [btn addTarget:self action:@selector(openSearch) forControlEvents:UIControlEventTouchUpInside];
-    [self.view addSubview:btn];
-    [btn mas_makeConstraints:^(MASConstraintMaker *make) {
+    UIButton *search = [UIButton buttonWithType:UIButtonTypeCustom];
+    [search setTitle:@"搜索" forState:UIControlStateNormal];
+    [search setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    search.titleLabel.font = [UIFont boldSystemFontOfSize:15];
+    [search addTarget:self action:@selector(openSearch) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:search];
+    [search mas_makeConstraints:^(MASConstraintMaker *make) {
         make.right.equalTo(self.view).inset(16);
         make.top.equalTo(self.view).offset(SafeAreaTopHeight + 8);
         make.width.mas_equalTo(48);
         make.height.mas_equalTo(32);
     }];
+
+    UIButton *settings = [UIButton buttonWithType:UIButtonTypeCustom];
+    [settings setTitle:@"设置" forState:UIControlStateNormal];
+    [settings setTitleColor:[[UIColor whiteColor] colorWithAlphaComponent:0.75] forState:UIControlStateNormal];
+    settings.titleLabel.font = [UIFont boldSystemFontOfSize:15];
+    [settings addTarget:self action:@selector(openServerSettings) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:settings];
+    [settings mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.right.equalTo(search.mas_left).inset(-8);
+        make.centerY.equalTo(search);
+        make.width.mas_equalTo(48);
+        make.height.mas_equalTo(32);
+    }];
+}
+
+/// 手动填写服务器地址（自动发现失败时的保底）
+- (void)openServerSettings {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"服务器地址"
+                                                                  message:@"填 电脑IP:6699，例如 172.29.8.196:6699"
+                                                           preferredStyle:UIAlertControllerStyleAlert];
+    [alert addTextFieldWithConfigurationHandler:^(UITextField *tf) {
+        NSString *saved = [[NSUserDefaults standardUserDefaults] stringForKey:@"dk.baseUrl"];
+        tf.text = saved.length ? saved : BaseUrl;
+        tf.placeholder = @"172.29.8.196:6699";
+        tf.keyboardType = UIKeyboardTypeURL;
+        tf.autocapitalizationType = UITextAutocapitalizationTypeNone;
+        tf.autocorrectionType = UITextAutocorrectionTypeNo;
+    }];
+
+    __weak __typeof(self) wself = self;
+    [alert addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"保存并重连" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        NSString *v = [alert.textFields.firstObject.text ?: @"" stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (v.length == 0) { return; }
+
+        if (![v.lowercaseString hasPrefix:@"http"]) {
+            v = [@"http://" stringByAppendingString:v];
+        }
+        if (![v hasSuffix:@"/douyin/"]) {
+            if (![v hasSuffix:@"/"]) { v = [v stringByAppendingString:@"/"]; }
+            v = [v stringByAppendingString:@"douyin/"];
+        }
+
+        BaseUrl = [v copy];
+        [[NSUserDefaults standardUserDefaults] setObject:BaseUrl forKey:@"dk.baseUrl"];
+        [UIWindow showTips:@"已保存，正在重新加载"];
+        [wself reloadFromServer];
+    }]];
+
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+/// 清空列表，从当前 BaseUrl 重新拉第一页
+- (void)reloadFromServer {
+    [self.data removeAllObjects];
+    [self.awemes removeAllObjects];
+    self.pageIndex = 1;
+    [self.tableView reloadData];
+    [self loadData:1 pageSize:10];
 }
 
 
