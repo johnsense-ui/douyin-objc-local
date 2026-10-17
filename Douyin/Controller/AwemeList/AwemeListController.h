@@ -18,6 +18,8 @@ typedef NS_ENUM(NSUInteger, AwemeType) {
 
 @property (nonatomic, strong) UITableView                       *tableView;
 @property (nonatomic, assign) NSInteger                         currentIndex;
+@property (nonatomic, assign) BOOL                              hidesBackButton;
+@property (nonatomic, assign) BOOL                              isFeedRoot;
 
 -(instancetype)initWithVideoData:(NSMutableArray<Aweme *> *)data currentIndex:(NSInteger)currentIndex pageIndex:(NSInteger)pageIndex pageSize:(NSInteger)pageSize awemeType:(AwemeType)type uid:(NSString *)uid;
 

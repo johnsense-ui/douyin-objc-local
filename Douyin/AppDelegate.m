@@ -9,6 +9,7 @@
 #import <Photos/Photos.h>
 #import "AppDelegate.h"
 #import "UserHomePageController.h"
+#import "AwemeListController.h"
 #import "NetworkHelper.h"
 #import "WebSocketManager.h"
 #import "AVPlayerManager.h"
@@ -17,7 +18,39 @@
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     _window = [[UIWindow alloc]initWithFrame:[[UIScreen mainScreen] bounds]];
-    _window.rootViewController = [[UINavigationController alloc] initWithRootViewController:[UserHomePageController new]];
+    // 首屏 = 推荐流：先拉一页数据再落地，失败则回退到个人主页
+    UIViewController *splash = [UIViewController new];
+    splash.view.backgroundColor = [UIColor blackColor];
+    _window.rootViewController = splash;
+    __weak __typeof(self) wself = self;
+    AwemeListRequest *feedReq = [AwemeListRequest new];
+    feedReq.page = 1;
+    feedReq.size = 10;
+    feedReq.uid = @"__feed__";
+    [NetworkHelper getWithUrlPath:FindAwemePostByPagePath request:feedReq success:^(id data) {
+        AwemeListResponse *resp = [[AwemeListResponse alloc] initWithDictionary:data error:nil];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            UIViewController *rootVC = nil;
+            if(resp.data.count > 0) {
+                AwemeListController *feed = [[AwemeListController alloc]
+                    initWithVideoData:[resp.data mutableCopy]
+                         currentIndex:0 pageIndex:2 pageSize:10
+                            awemeType:AwemeWork uid:@"__feed__"];
+                feed.hidesBackButton = YES;
+                feed.isFeedRoot = YES;
+                UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:feed];
+                nav.navigationBarHidden = YES;
+                rootVC = nav;
+            } else {
+                rootVC = [[UINavigationController alloc] initWithRootViewController:[UserHomePageController new]];
+            }
+            wself.window.rootViewController = rootVC;
+        });
+    } failure:^(NSError *error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            wself.window.rootViewController = [[UINavigationController alloc] initWithRootViewController:[UserHomePageController new]];
+        });
+    }];
     [_window makeKeyAndVisible];
 
     [NetworkHelper startListening];

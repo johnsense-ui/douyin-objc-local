@@ -14,10 +14,13 @@
 #import "NetworkHelper.h"
 #import "LoadMoreControl.h"
 #import "AVPlayerManager.h"
+#import "UserHomePageController.h"
+
+@class SearchController;
 
 NSString * const kAwemeListCell   = @"AwemeListCell";
 
-@interface AwemeListController () <UITableViewDelegate, UITableViewDataSource, UIScrollViewDelegate>
+@interface AwemeListController () <UITableViewDelegate, UITableViewDataSource, UIScrollViewDelegate, AwemeListCellDelegate>
 
 @property (nonatomic, assign) BOOL                              isCurPlayerPause;
 @property (nonatomic, assign) NSInteger                         pageIndex;
@@ -57,7 +60,12 @@ NSString * const kAwemeListCell   = @"AwemeListCell";
     [super viewDidLoad];
     [self setBackgroundImage:@"img_video_loading"];
     [self setUpView];
-    [self setLeftButton:@"icon_titlebar_whiteback"];
+    if(self.hidesBackButton) {
+        self.navigationController.navigationBarHidden = YES;
+        [self addSearchEntry];
+    } else {
+        [self setLeftButton:@"icon_titlebar_whiteback"];
+    }
 }
 
 - (void)setUpView {
@@ -127,10 +135,43 @@ NSString * const kAwemeListCell   = @"AwemeListCell";
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     //填充视频数据
     AwemeListCell *cell = [tableView dequeueReusableCellWithIdentifier:kAwemeListCell forIndexPath:indexPath];
+    cell.cellDelegate = self;
     [cell initData:_data[indexPath.row]];
     [cell startDownloadBackgroundTask];
     return cell;
 }
+
+#pragma mark - AwemeListCellDelegate
+
+- (void)awemeCellDidTapAvatar:(Aweme *)aweme {
+    if(aweme.author.uid.length == 0) { return; }
+    UserHomePageController *home = [[UserHomePageController alloc] initWithUid:aweme.author.uid];
+    home.hidesBottomBarWhenPushed = YES;
+    [self.navigationController pushViewController:home animated:YES];
+}
+
+#pragma mark - 搜索入口
+
+- (void)addSearchEntry {
+    UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
+    [btn setTitle:@"搜索" forState:UIControlStateNormal];
+    [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    btn.titleLabel.font = [UIFont boldSystemFontOfSize:15];
+    [btn addTarget:self action:@selector(openSearch) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:btn];
+    [btn mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.right.equalTo(self.view).inset(16);
+        make.top.equalTo(self.view).offset(SafeAreaTopHeight + 8);
+        make.width.mas_equalTo(48);
+        make.height.mas_equalTo(32);
+    }];
+}
+
+- (void)openSearch {
+    id vc = [SearchController new];
+    [self.navigationController pushViewController:vc animated:YES];
+}
+
 
 #pragma ScrollView delegate
 - (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate{
@@ -262,6 +303,146 @@ NSString * const kAwemeListCell   = @"AwemeListCell";
 
 - (void)dealloc {
     NSLog(@"======== dealloc =======");
+}
+
+@end
+
+#pragma mark - 搜索页
+
+@interface SearchController : BaseViewController <UISearchBarDelegate, UITableViewDelegate, UITableViewDataSource>
+@property (nonatomic, strong) UISearchBar *searchBar;
+@property (nonatomic, strong) UITableView *tableView;
+@property (nonatomic, strong) NSMutableArray<Aweme *> *results;
+@property (nonatomic, strong) NSMutableArray<NSString *> *suggestions;
+@property (nonatomic, assign) BOOL showingSuggest;
+@end
+
+@implementation SearchController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = [UIColor blackColor];
+    _results = [NSMutableArray array];
+    _suggestions = [NSMutableArray array];
+    _showingSuggest = YES;
+
+    _searchBar = [[UISearchBar alloc] init];
+    _searchBar.placeholder = @"搜作者 / 文案 / 合集";
+    _searchBar.delegate = self;
+    _searchBar.barStyle = UIBarStyleBlack;
+    _searchBar.searchBarStyle = UISearchBarStyleMinimal;
+    _searchBar.tintColor = [UIColor whiteColor];
+    [self.view addSubview:_searchBar];
+
+    _tableView = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
+    _tableView.backgroundColor = [UIColor blackColor];
+    _tableView.separatorColor = [UIColor colorWithWhite:0.2 alpha:1];
+    _tableView.delegate = self;
+    _tableView.dataSource = self;
+    _tableView.rowHeight = 88;
+    _tableView.tableFooterView = [UIView new];
+    [self.view addSubview:_tableView];
+
+    [_searchBar mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.left.right.equalTo(self.view);
+        make.top.equalTo(self.view).offset(SafeAreaTopHeight);
+        make.height.mas_equalTo(50);
+    }];
+    [_tableView mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.left.right.bottom.equalTo(self.view);
+        make.top.equalTo(self.searchBar.mas_bottom);
+    }];
+
+    [self loadSuggestions];
+}
+
+- (void)loadSuggestions {
+    NSString *url = [NSString stringWithFormat:@"%@search/suggest", BaseUrl];
+    [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:url]
+                                 completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        if(!data) { return; }
+        NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        NSMutableArray *words = [NSMutableArray array];
+        for(NSDictionary *d in json[@"data"]) {
+            NSString *w = d[@"word"];
+            if(w.length > 0) { [words addObject:w]; }
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.suggestions setArray:words];
+            self.showingSuggest = YES;
+            [self.tableView reloadData];
+        });
+    }] resume];
+}
+
+- (void)searchBarSearchButtonClicked:(UISearchBar *)searchBar {
+    [searchBar resignFirstResponder];
+    [self runSearch:searchBar.text];
+}
+
+- (void)runSearch:(NSString *)q {
+    if(q.length == 0) { return; }
+    NSString *enc = [q stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+    NSString *url = [NSString stringWithFormat:@"%@search?q=%@", BaseUrl, enc];
+    [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:url]
+                                 completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        AwemeListResponse *r = nil;
+        if(data) {
+            NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+            r = [[AwemeListResponse alloc] initWithDictionary:json error:nil];
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.results setArray:r.data ?: @[]];
+            self.showingSuggest = NO;
+            [self.tableView reloadData];
+            if(self.results.count == 0) { [UIWindow showTips:@"没有匹配的视频"]; }
+        });
+    }] resume];
+}
+
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+    return self.showingSuggest ? self.suggestions.count : self.results.count;
+}
+
+- (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
+    return self.showingSuggest ? @"猜你想搜" : @"搜索结果";
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    static NSString *cellId = @"SearchCell";
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:cellId];
+    if(!cell) {
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:cellId];
+        cell.backgroundColor = [UIColor colorWithWhite:0.08 alpha:1];
+        cell.textLabel.textColor = [UIColor whiteColor];
+        cell.textLabel.numberOfLines = 2;
+        cell.detailTextLabel.textColor = [UIColor lightGrayColor];
+        cell.selectionStyle = UITableViewCellSelectionStyleNone;
+    }
+    if(self.showingSuggest) {
+        cell.textLabel.text = self.suggestions[indexPath.row];
+        cell.detailTextLabel.text = @"";
+    } else {
+        Aweme *a = self.results[indexPath.row];
+        cell.textLabel.text = a.desc.length > 0 ? a.desc : @"(无文案)";
+        cell.detailTextLabel.text = [NSString stringWithFormat:@"@%@   ♥ %@", a.author.nickname, [NSString formatCount:a.statistics.digg_count]];
+    }
+    return cell;
+}
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    if(self.showingSuggest) {
+        NSString *word = self.suggestions[indexPath.row];
+        self.searchBar.text = word;
+        [self runSearch:word];
+        return;
+    }
+    if(self.results.count == 0) { return; }
+    AwemeListController *feed = [[AwemeListController alloc] initWithVideoData:self.results
+                                                                  currentIndex:indexPath.row
+                                                                     pageIndex:2 pageSize:10
+                                                                     awemeType:AwemeWork uid:@""];
+    [self.navigationController pushViewController:feed animated:YES];
 }
 
 @end

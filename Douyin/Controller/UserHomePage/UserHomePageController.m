@@ -50,10 +50,16 @@ NSString * const kAwemeCollectionCell  = @"AwemeCollectionCell";
 @end
 
 @implementation UserHomePageController
+
+- (instancetype)initWithUid:(NSString *)uid {
+    self = [super init];
+    if(self) { _uid = [uid copy]; }
+    return self;
+}
 - (instancetype)init {
     self = [super init];
     if (self) {
-        _uid = @"97795069353";
+        if(!_uid) { _uid = @"97795069353"; }
         
         _workAwemes = [[NSMutableArray alloc]init];
         _favoriteAwemes = [[NSMutableArray alloc]init];

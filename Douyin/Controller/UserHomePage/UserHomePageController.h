@@ -11,4 +11,5 @@
 @interface UserHomePageController : BaseViewController
 @property (nonatomic, strong) UICollectionView                 *collectionView;
 @property (nonatomic, assign) NSInteger                        selectIndex;
+- (instancetype)initWithUid:(NSString *)uid;
 @end

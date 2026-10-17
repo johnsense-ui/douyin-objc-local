@@ -168,6 +168,8 @@ static const NSInteger kAwemeListLikeShareTag   = 0x02;
     //init avatar
     CGFloat avatarRadius = 25;
     _avatar = [[UIImageView alloc] init];
+    _avatar.userInteractionEnabled = YES;
+    [_avatar addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleAvatarTap)]];
     _avatar.image = [UIImage imageNamed:@"img_find_default"];
     _avatar.layer.cornerRadius = avatarRadius;
     _avatar.layer.borderColor = ColorWhiteAlpha80.CGColor;
@@ -487,6 +489,12 @@ static const NSInteger kAwemeListLikeShareTag   = 0x02;
 }
 
 // update method
+- (void)handleAvatarTap {
+    if(self.cellDelegate && self.aweme) {
+        [self.cellDelegate awemeCellDidTapAvatar:self.aweme];
+    }
+}
+
 - (void)initData:(Aweme *)aweme {
     _aweme = aweme;
     if(_coverPlaceholderView) {

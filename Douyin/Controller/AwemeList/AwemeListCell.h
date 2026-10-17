@@ -18,9 +18,15 @@ typedef void (^OnPlayerReady)(void);
 @class MusicAlbumView;
 @class FavoriteView;
 
+@protocol AwemeListCellDelegate <NSObject>
+@optional
+- (void)awemeCellDidTapAvatar:(Aweme *)aweme;
+@end
+
 @interface AwemeListCell : UITableViewCell
 
 @property (nonatomic, strong) Aweme            *aweme;
+@property (nonatomic, weak) id<AwemeListCellDelegate> cellDelegate;
 
 @property (nonatomic, strong) AVPlayerView     *playerView;
 @property (nonatomic, strong) HoverTextView    *hoverTextView;
